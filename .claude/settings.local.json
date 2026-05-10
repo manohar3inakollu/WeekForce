@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(if \\(-not $?\\) { \"Directory is empty or doesn't exist\" })",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(npx expo --version 2>$null)",
+      "Bash(npm --version)",
+      "Bash(npx expo *)",
+      "Read(//c/Users/relic/Desktop/WeekForce/**)",
+      "Bash(npx create-expo-app@latest . --template blank-typescript)",
+      "Read(//c/Users/relic/Desktop/**)",
+      "Bash(npx create-expo-app@latest WeekForce_temp --template blank-typescript)",
+      "Bash(cp \"/c/Users/relic/Desktop/WeekForce_temp/package.json\" \"/c/Users/relic/Desktop/WeekForce/package.json\")",
+      "Bash(cp \"/c/Users/relic/Desktop/WeekForce_temp/tsconfig.json\" \"/c/Users/relic/Desktop/WeekForce/tsconfig.json\")",
+      "Bash(cp \"/c/Users/relic/Desktop/WeekForce_temp/.gitignore\" \"/c/Users/relic/Desktop/WeekForce/.gitignore\")",
+      "Bash(cp \"/c/Users/relic/Desktop/WeekForce_temp/app.json\" \"/c/Users/relic/Desktop/WeekForce/app.json\")",
+      "Bash(cp \"/c/Users/relic/Desktop/WeekForce_temp/babel.config.js\" \"/c/Users/relic/Desktop/WeekForce/babel.config.js\")",
+      "Bash(cp -r \"/c/Users/relic/Desktop/WeekForce_temp/assets\" \"/c/Users/relic/Desktop/WeekForce/assets\")",
+      "Bash(npm install *)",
+      "Bash(npm view *)",
+      "Bash(python3 -c \"import sys,json; v=json.load\\(sys.stdin\\); print\\([x for x in v if x.startswith\\('4.'\\) or x.startswith\\('3.'\\)][-10:]\\)\")",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); const v=JSON.parse\\(d\\); console.log\\(v.filter\\(x=>x.startsWith\\('4.'\\)\\).slice\\(-5\\)\\)\")",
+      "Bash(mkdir -p \"/c/Users/relic/Desktop/WeekForce/supabase/migrations\")",
+      "Bash(rm -rf \"/c/Users/relic/Desktop/WeekForce_temp\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\relic\\Desktop\\WeekForce\\supabase",
+      "C:\\Users\\relic\\Desktop\\WeekForce_temp"
+    ]
+  }
+}
