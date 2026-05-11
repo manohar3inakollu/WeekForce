@@ -70,14 +70,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="rank"
+        name="habits"
         options={{
-          title: 'Rank',
+          title: 'Habits',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="shield-outline" size={size} color={color} />
+            <Ionicons name="repeat-outline" size={size} color={color} />
           ),
         }}
       />
+      <Tabs.Screen name="rank" options={{ href: null }} />
     </Tabs>
   );
 }

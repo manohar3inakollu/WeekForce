@@ -11,7 +11,8 @@ interface CompletionRingProps {
 
 export function CompletionRing({ completed, total, size = 80 }: CompletionRingProps) {
   const pct = total > 0 ? clamp(completed / total, 0, 1) : 0;
-  const radius = (size - 12) / 2;
+  const strokeWidth = size >= 100 ? 10 : 8;
+  const radius = (size - strokeWidth * 1.5) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - pct);
 
@@ -23,7 +24,7 @@ export function CompletionRing({ completed, total, size = 80 }: CompletionRingPr
           cy={size / 2}
           r={radius}
           stroke="#1E1E24"
-          strokeWidth={8}
+          strokeWidth={strokeWidth}
           fill="none"
         />
         <Circle
@@ -31,7 +32,7 @@ export function CompletionRing({ completed, total, size = 80 }: CompletionRingPr
           cy={size / 2}
           r={radius}
           stroke="#5B5EF4"
-          strokeWidth={8}
+          strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
@@ -40,8 +41,8 @@ export function CompletionRing({ completed, total, size = 80 }: CompletionRingPr
         />
       </Svg>
       <View className="absolute items-center">
-        <Text className="text-text-primary font-bold text-lg">{Math.round(pct * 100)}%</Text>
-        <Text className="text-text-muted text-xs">{completed}/{total}</Text>
+        <Text className="text-text-primary font-bold text-2xl">{Math.round(pct * 100)}%</Text>
+        <Text className="text-text-muted text-sm">{completed}/{total}</Text>
       </View>
     </View>
   );

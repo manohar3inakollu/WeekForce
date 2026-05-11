@@ -1,15 +1,18 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Task } from '@/types';
-import { useCompleteTask, useUncompleteTask, useDeleteTask } from '@/hooks/useTasks';
-import { XP_AWARDS } from '@/constants/xp';
+import { useCompleteTask, useUncompleteTask, useDeleteTask, useUpdateTask } from '@/hooks/useTasks';
+import { useGoals } from '@/hooks/useGoals';
+import { useUIStore } from '@/store/ui';
+import { TASK_XP_BY_DIFFICULTY } from '@/constants/xp';
 import { categoryColor } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { TaskForm, TaskFormData } from '@/components/tasks/TaskForm';
 
 export default function TaskDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,28 +34,31 @@ export default function TaskDetail() {
   const completeTask = useCompleteTask();
   const uncompleteTask = useUncompleteTask();
   const deleteTask = useDeleteTask();
+  const updateTask = useUpdateTask();
+  const weekStart = useUIStore((s) => s.selectedWeekStart);
+  const { data: goals = [] } = useGoals(task?.due_date ?? weekStart);
+  const [showEditForm, setShowEditForm] = useState(false);
+
+  const xpAmount = TASK_XP_BY_DIFFICULTY[task?.difficulty ?? 'medium'];
 
   const handleToggle = () => {
     if (!task) return;
     if (task.is_completed) {
       uncompleteTask.mutate(task.id);
     } else {
-      completeTask.mutate({ task, xpAmount: XP_AWARDS.small_task });
+      completeTask.mutate({ task, xpAmount });
     }
   };
 
   const handleDelete = () => {
-    Alert.alert('Delete Task', 'Remove this task permanently?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          deleteTask.mutate(task!.id);
-          router.back();
-        },
-      },
-    ]);
+    deleteTask.mutate(task!.id);
+    router.back();
+  };
+
+  const handleEdit = async (data: TaskFormData) => {
+    if (!task) return;
+    await updateTask.mutateAsync({ id: task.id, updates: data });
+    setShowEditForm(false);
   };
 
   if (isLoading || !task) {
@@ -72,9 +78,14 @@ export default function TaskDetail() {
           <Ionicons name="chevron-down" size={20} color="#5B5EF4" />
           <Text className="text-accent text-base">Close</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={handleDelete}>
-          <Ionicons name="trash-outline" size={20} color="#EF4444" />
-        </TouchableOpacity>
+        <View className="flex-row gap-1">
+          <TouchableOpacity onPress={() => setShowEditForm(true)} className="p-1">
+            <Ionicons name="pencil-outline" size={20} color="#8888A0" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDelete} className="p-1">
+            <Ionicons name="trash-outline" size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView className="flex-1 px-5 pt-6" contentContainerStyle={{ gap: 20 }}>
@@ -105,7 +116,13 @@ export default function TaskDetail() {
           <View className="flex-row justify-between">
             <View className="gap-1">
               <Text className="text-text-muted text-xs">XP reward</Text>
-              <Text className="text-xp font-bold text-xl">+{XP_AWARDS.small_task} XP</Text>
+              <Text className="text-xp font-bold text-xl">+{xpAmount} XP</Text>
+            </View>
+            <View className="gap-1">
+              <Text className="text-text-muted text-xs">Difficulty</Text>
+              <Text className="font-semibold text-base text-text-secondary capitalize">
+                {task.difficulty ?? 'medium'}
+              </Text>
             </View>
             <View className="gap-1">
               <Text className="text-text-muted text-xs">Status</Text>
@@ -121,7 +138,7 @@ export default function TaskDetail() {
 
       <View className="px-5 pb-10 pt-4 border-t border-border">
         <Button
-          label={task.is_completed ? 'Mark as incomplete' : 'Mark complete · +10 XP'}
+          label={task.is_completed ? 'Mark as incomplete' : `Mark complete · +${xpAmount} XP`}
           onPress={handleToggle}
           variant={task.is_completed ? 'secondary' : 'primary'}
           loading={completeTask.isPending || uncompleteTask.isPending}
@@ -129,6 +146,26 @@ export default function TaskDetail() {
           size="lg"
         />
       </View>
+
+      <TaskForm
+        visible={showEditForm}
+        onClose={() => setShowEditForm(false)}
+        onSubmit={handleEdit}
+        loading={updateTask.isPending}
+        goals={goals}
+        mode="edit"
+        initial={{
+          title: task.title,
+          scheduled_day: task.scheduled_day,
+          goal_id: task.goal_id,
+          start_time: task.start_time,
+          estimated_minutes: task.estimated_minutes,
+          priority: task.priority,
+          difficulty: task.difficulty,
+          recurrence_type: task.recurrence_type,
+          recurrence_days: task.recurrence_days,
+        }}
+      />
     </View>
   );
 }

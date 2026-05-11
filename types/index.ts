@@ -31,20 +31,35 @@ export interface Goal {
   description: string | null;
   category: GoalCategory;
   week_start: string;
+  due_date: string | null;
   status: GoalStatus;
+  difficulty: Difficulty;
   xp_awarded: boolean;
   created_at?: string;
 }
 
 export type DayOfWeek = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
+export type TaskPriority = 'high' | 'medium' | 'low';
+export type TaskStatus = 'pending' | 'in_progress' | 'done';
+export type Difficulty = 'easy' | 'medium' | 'hard' | 'epic';
+export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'custom';
 
 export interface Task {
   id: string;
-  goal_id: string;
+  goal_id: string | null;
   user_id: string;
   title: string;
   scheduled_day: DayOfWeek;
   due_date: string | null;
+  start_time: string | null;
+  estimated_minutes: number;
+  priority: TaskPriority;
+  difficulty: Difficulty;
+  recurrence_type: RecurrenceType;
+  recurrence_days: DayOfWeek[] | null;
+  completed_dates: string[];
+  status: TaskStatus;
+  sort_order: number;
   is_completed: boolean;
   xp_awarded: boolean;
   created_at?: string;

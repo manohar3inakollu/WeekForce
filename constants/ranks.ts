@@ -25,7 +25,7 @@ export const RANKS: Rank[] = [
   { id: 22, code: '22', title: 'Titan', min_xp: 58500, qualifying_days: 1110, badge_url: null, track: 'leader' },
   { id: 23, code: '23', title: 'Apex', min_xp: 63500, qualifying_days: 1200, badge_url: null, track: 'leader' },
   { id: 24, code: '24', title: 'Legend', min_xp: 63900, qualifying_days: 1278, badge_url: null, track: 'leader' },
-  { id: 25, code: '25', title: 'Immortal', min_xp: 91400, qualifying_days: 9999, badge_url: null, track: 'prestige' },
+  { id: 25, code: '25', title: 'Immortal', min_xp: 91400, qualifying_days: 1825, badge_url: null, track: 'prestige' },
 ];
 
 export const TRACK_COLORS = {

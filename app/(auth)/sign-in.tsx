@@ -1,51 +1,65 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, TouchableOpacity, Platform, Alert } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { FontAwesome } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
-import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
+import { useAuthStore } from '@/store/auth';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function SignIn() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const setSession = useAuthStore((s) => s.setSession);
   const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null);
-
-  const handleSignIn = async () => {
-    if (!email.trim() || !password) return;
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) throw error;
-      router.replace('/(tabs)');
-    } catch (e: any) {
-      Alert.alert('Sign in failed', e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleOAuthSignIn = async (provider: 'google' | 'apple') => {
     setOauthLoading(provider);
     try {
-      const redirectTo = Linking.createURL('/');
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo, skipBrowserRedirect: true },
-      });
-      if (error) throw error;
-      if (!data.url) return;
+      if (Platform.OS === 'web') {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: window.location.origin,
+            queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined,
+          },
+        });
+        if (error) throw error;
+      } else {
+        const redirectTo = Linking.createURL('/');
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo,
+            skipBrowserRedirect: true,
+            queryParams: provider === 'google' ? { prompt: 'select_account' } : undefined,
+          },
+        });
+        if (error) throw error;
+        if (!data.url) return;
 
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-      if (result.type === 'success') {
-        const { error: sessionError } = await supabase.auth.exchangeCodeForSession(result.url);
-        if (sessionError) throw sessionError;
-        router.replace('/(tabs)');
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+        if (result.type === 'success') {
+          const url = result.url;
+          if (url.includes('access_token=')) {
+            const fragment = url.includes('#') ? url.split('#')[1] : url.split('?')[1];
+            const params = new URLSearchParams(fragment ?? '');
+            const access_token = params.get('access_token');
+            const refresh_token = params.get('refresh_token') ?? '';
+            if (!access_token) throw new Error('No access token in OAuth redirect');
+            const { error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token });
+            if (sessionError) throw sessionError;
+          } else {
+            const { error: sessionError } = await supabase.auth.exchangeCodeForSession(url);
+            if (sessionError) throw sessionError;
+          }
+          // onAuthStateChange fires async, so manually sync the session into Zustand
+          // before navigating so index.tsx sees it immediately on render.
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) setSession(session);
+          router.replace('/');
+        }
       }
     } catch (e: any) {
       Alert.alert('Sign in failed', e.message);
@@ -55,102 +69,73 @@ export default function SignIn() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="flex-1 bg-surface"
-    >
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
+    <View className="flex-1 bg-surface">
+      {/* Hero gradient top */}
+      <LinearGradient
+        colors={['#1a1a2e', '#0F0F11']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}
       >
-        <View className="flex-1 px-6 pt-20 pb-8 gap-8">
-          <View className="gap-2">
-            <Text className="text-text-primary text-4xl font-bold tracking-tight">WeekForce</Text>
-            <Text className="text-text-secondary text-base">Sign in to your account</Text>
-          </View>
-
-          <View className="gap-4">
-            <Input
-              label="Email"
-              placeholder="you@example.com"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-            <TouchableOpacity
-              onPress={() =>
-                Alert.alert(
-                  'Forgot email?',
-                  'Check the inbox of any email you may have used when signing up. If you still need help, contact support.',
-                )
-              }
-              className="self-end"
+        {/* Logo / branding */}
+        <View style={{ alignItems: 'center', marginBottom: 56, gap: 12 }}>
+          <View style={{ width: 72, height: 72, borderRadius: 20, overflow: 'hidden', marginBottom: 4 }}>
+            <LinearGradient
+              colors={['#6B6EFF', '#5B5EF4']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
             >
-              <Text className="text-accent text-sm">Forgot email?</Text>
-            </TouchableOpacity>
-            <Input
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              autoComplete="password"
-            />
-            <TouchableOpacity
-              onPress={() => router.push('/(auth)/forgot-password')}
-              className="self-end"
-            >
-              <Text className="text-accent text-sm">Forgot password?</Text>
-            </TouchableOpacity>
+              <Text style={{ color: '#fff', fontSize: 32, fontWeight: '800' }}>W</Text>
+            </LinearGradient>
           </View>
-
-          <Button label="Sign In" onPress={handleSignIn} loading={loading} fullWidth />
-
-          {/* Divider */}
-          <View className="flex-row items-center gap-3">
-            <View className="flex-1 h-px bg-border" />
-            <Text className="text-text-secondary text-sm">or continue with</Text>
-            <View className="flex-1 h-px bg-border" />
-          </View>
-
-          {/* OAuth buttons */}
-          <View className="gap-3">
-            <TouchableOpacity
-              onPress={() => handleOAuthSignIn('google')}
-              disabled={oauthLoading !== null}
-              activeOpacity={0.8}
-              className="flex-row items-center justify-center gap-3 bg-surface-overlay border border-border rounded-xl py-3 px-5 opacity-100 disabled:opacity-50"
-            >
-              <FontAwesome name="google" size={18} color="#EA4335" />
-              <Text className="text-text-primary font-medium text-base">
-                {oauthLoading === 'google' ? 'Opening…' : 'Continue with Google'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => handleOAuthSignIn('apple')}
-              disabled={oauthLoading !== null}
-              activeOpacity={0.8}
-              className="flex-row items-center justify-center gap-3 bg-surface-overlay border border-border rounded-xl py-3 px-5 opacity-100 disabled:opacity-50"
-            >
-              <FontAwesome name="apple" size={20} color="#FFFFFF" />
-              <Text className="text-text-primary font-medium text-base">
-                {oauthLoading === 'apple' ? 'Opening…' : 'Continue with Apple'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <View className="flex-row items-center justify-center gap-1">
-            <Text className="text-text-secondary text-sm">Don't have an account?</Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/sign-up')}>
-              <Text className="text-accent text-sm font-semibold">Sign up</Text>
-            </TouchableOpacity>
-          </View>
+          <Text style={{ color: '#F0F0F5', fontSize: 36, fontWeight: '800', letterSpacing: -0.5 }}>
+            WeekForce
+          </Text>
+          <Text style={{ color: '#8888A0', fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
+            Build habits. Earn XP. Climb ranks.{'\n'}Sign in to continue.
+          </Text>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+        {/* OAuth buttons */}
+        <View style={{ width: '100%', gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => handleOAuthSignIn('google')}
+            disabled={oauthLoading !== null}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12,
+              backgroundColor: '#222228', borderWidth: 1, borderColor: '#2A2A32',
+              borderRadius: 14, paddingVertical: 15, opacity: oauthLoading !== null ? 0.6 : 1,
+            }}
+          >
+            <FontAwesome name="google" size={20} color="#EA4335" />
+            <Text style={{ color: '#F0F0F5', fontWeight: '600', fontSize: 16 }}>
+              {oauthLoading === 'google' ? 'Opening…' : 'Continue with Google'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => handleOAuthSignIn('apple')}
+            disabled={oauthLoading !== null}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12,
+              backgroundColor: '#222228', borderWidth: 1, borderColor: '#2A2A32',
+              borderRadius: 14, paddingVertical: 15, opacity: oauthLoading !== null ? 0.6 : 1,
+            }}
+          >
+            <FontAwesome name="apple" size={22} color="#FFFFFF" />
+            <Text style={{ color: '#F0F0F5', fontWeight: '600', fontSize: 16 }}>
+              {oauthLoading === 'apple' ? 'Opening…' : 'Continue with Apple'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={{ color: '#55556A', fontSize: 12, textAlign: 'center', marginTop: 28, lineHeight: 18 }}>
+          By continuing you agree to our Terms of Service{'\n'}and Privacy Policy.
+        </Text>
+      </LinearGradient>
+    </View>
   );
 }

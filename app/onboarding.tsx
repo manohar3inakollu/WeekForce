@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/store/auth';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
@@ -18,23 +19,25 @@ const XP_TARGET_OPTIONS: { value: DailyXPTarget; label: string; desc: string }[]
 
 export default function Onboarding() {
   const session = useAuthStore((s) => s.session);
+  const setOnboarded = useAuthStore((s) => s.setOnboarded);
   const [target, setTarget] = useState<DailyXPTarget>('regular');
   const [loading, setLoading] = useState(false);
   const beginnerRank = RANKS[0];
 
   const handleDone = async () => {
-    if (!session) return;
     setLoading(true);
     try {
-      await supabase
-        .from('users')
-        .update({ daily_xp_target: target })
-        .eq('id', session.user.id);
-      router.replace('/(tabs)');
-    } catch {
-      router.replace('/(tabs)');
+      if (session) {
+        await supabase
+          .from('users')
+          .update({ daily_xp_target: target })
+          .eq('id', session.user.id);
+        await AsyncStorage.setItem(`onboarded_${session.user.id}`, 'true');
+        setOnboarded(true);
+      }
     } finally {
       setLoading(false);
+      router.replace('/(tabs)');
     }
   };
 

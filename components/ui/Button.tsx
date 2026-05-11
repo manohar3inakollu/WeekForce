@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, Text, ActivityIndicator, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
 interface ButtonProps {
   label: string;
@@ -10,25 +11,6 @@ interface ButtonProps {
   disabled?: boolean;
   fullWidth?: boolean;
 }
-
-const variantStyles = {
-  primary: {
-    container: 'bg-accent',
-    text: 'text-white font-semibold',
-  },
-  secondary: {
-    container: 'bg-surface-overlay border border-border',
-    text: 'text-text-primary font-medium',
-  },
-  ghost: {
-    container: 'bg-transparent',
-    text: 'text-accent font-medium',
-  },
-  danger: {
-    container: 'bg-danger',
-    text: 'text-white font-semibold',
-  },
-};
 
 const sizeStyles = {
   sm: { container: 'px-3 py-1.5 rounded-md', text: 'text-sm' },
@@ -45,9 +27,46 @@ export function Button({
   disabled = false,
   fullWidth = false,
 }: ButtonProps) {
-  const v = variantStyles[variant];
   const s = sizeStyles[size];
   const isDisabled = disabled || loading;
+
+  if (variant === 'primary') {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={isDisabled}
+        activeOpacity={0.85}
+        className={`overflow-hidden rounded-xl ${fullWidth ? 'w-full' : ''} ${isDisabled ? 'opacity-50' : ''}`}
+      >
+        <LinearGradient
+          colors={['#6B6EFF', '#5B5EF4']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          className={`flex-row items-center justify-center ${s.container}`}
+        >
+          {loading && <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />}
+          <Text className={`text-white font-semibold ${s.text}`}>{label}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
+
+  const variantStyles = {
+    secondary: {
+      container: 'bg-surface-overlay border border-border',
+      text: 'text-text-primary font-medium',
+    },
+    ghost: {
+      container: 'bg-transparent',
+      text: 'text-accent font-medium',
+    },
+    danger: {
+      container: 'bg-danger',
+      text: 'text-white font-semibold',
+    },
+  };
+
+  const v = variantStyles[variant as 'secondary' | 'ghost' | 'danger'];
 
   return (
     <TouchableOpacity
