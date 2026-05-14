@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Task, TaskPriority } from '@/types';
-import { TASK_XP_BY_DIFFICULTY } from '@/constants/xp';
-import { categoryColor } from '@/lib/utils';
+import { TASK_XP_BY_DIFFICULTY, DIFFICULTIES } from '@/constants/xp';
+import { categoryColor, formatTime, isTaskOverdue } from '@/lib/utils';
 
 const PRIORITY_COLOR: Record<TaskPriority, string> = {
   high: '#EF4444',
@@ -11,18 +11,12 @@ const PRIORITY_COLOR: Record<TaskPriority, string> = {
   low: '#22C55E',
 };
 
-function formatTime(t: string): string {
-  const [h, m] = t.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const hour = h % 12 || 12;
-  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
-}
-
 interface TaskCardProps {
   task: Task;
   onToggle: () => void;
   onPress?: () => void;
   onDelete?: () => void;
+  onUnassign?: () => void;
   onLongPress?: () => void;
   isActive?: boolean;
   showGoal?: boolean;
@@ -34,6 +28,7 @@ export function TaskCard({
   onToggle,
   onPress,
   onDelete,
+  onUnassign,
   onLongPress,
   isActive,
   showGoal,
@@ -41,10 +36,13 @@ export function TaskCard({
 }: TaskCardProps) {
   const goalColor = task.goal ? categoryColor(task.goal.category) : '#5B5EF4';
   const priorityColor = PRIORITY_COLOR[task.priority ?? 'medium'];
+  const diff = DIFFICULTIES.find((d) => d.value === (task.difficulty ?? 'medium'));
+  const diffColor = diff?.color ?? '#F59E0B';
   const isDone = isCompletedOverride !== undefined
     ? isCompletedOverride
     : (task.status === 'done' || task.is_completed);
   const isInProgress = isCompletedOverride === undefined && task.status === 'in_progress';
+  const isOverdue = isTaskOverdue(task, isDone);
 
   return (
     <TouchableOpacity
@@ -79,37 +77,53 @@ export function TaskCard({
         >
           {task.title}
         </Text>
-        <View className="flex-row items-center gap-2">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap', marginTop: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: (isDone ? '#44445A' : priorityColor) + '18', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, flexShrink: 0 }}>
+            <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: isDone ? '#44445A' : priorityColor }} />
+            <Text style={{ color: isDone ? '#44445A' : priorityColor, fontSize: 9, fontWeight: '700' }}>
+              {(task.priority ?? 'medium').charAt(0).toUpperCase() + (task.priority ?? 'medium').slice(1)}
+            </Text>
+          </View>
           {task.start_time && (
-            <View className="flex-row items-center gap-0.5">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 0 }}>
               <Ionicons name="time-outline" size={10} color="#55556A" />
-              <Text className="text-text-muted text-xs">{formatTime(task.start_time)}</Text>
+              <Text style={{ color: '#55556A', fontSize: 10 }}>{formatTime(task.start_time)}</Text>
             </View>
           )}
           {task.estimated_minutes && (
-            <View className="flex-row items-center gap-0.5">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, flexShrink: 0 }}>
               <Ionicons name="timer-outline" size={10} color="#55556A" />
-              <Text className="text-text-muted text-xs">
-                {task.estimated_minutes < 60
-                  ? `${task.estimated_minutes}m`
-                  : `${task.estimated_minutes / 60}h`}
+              <Text style={{ color: '#55556A', fontSize: 10 }}>
+                {task.estimated_minutes < 60 ? `${task.estimated_minutes}m` : `${task.estimated_minutes / 60}h`}
               </Text>
             </View>
           )}
           {showGoal && task.goal && (
-            <Text style={{ color: goalColor }} className="text-xs" numberOfLines={1}>
+            <Text style={{ color: goalColor, fontSize: 10, flexShrink: 1 }} numberOfLines={1}>
               {task.goal.title}
             </Text>
           )}
           {isInProgress && (
-            <Text className="text-warning text-xs font-medium">In progress</Text>
+            <Text style={{ color: '#F59E0B', fontSize: 9, fontWeight: '700', flexShrink: 0 }}>In progress</Text>
+          )}
+          {isOverdue && (
+            <Text style={{ color: '#EF4444', fontSize: 9, fontWeight: '700', flexShrink: 0 }}>Overdue</Text>
           )}
         </View>
       </View>
 
       {/* Right side */}
       <View className="flex-row items-center gap-2">
-        <Text className="text-xp text-xs font-medium">+{TASK_XP_BY_DIFFICULTY[task.difficulty ?? 'medium']} XP</Text>
+        <View style={{ backgroundColor: isDone ? '#44445A18' : diffColor + '18', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+          <Text style={{ color: isDone ? '#44445A' : diffColor, fontSize: 9, fontWeight: '700' }}>
+            {isDone ? '✓ ' : '+'}{TASK_XP_BY_DIFFICULTY[task.difficulty ?? 'medium']} XP
+          </Text>
+        </View>
+        {onUnassign && (
+          <TouchableOpacity onPress={onUnassign} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="unlink-outline" size={14} color="#55556A" />
+          </TouchableOpacity>
+        )}
         {onDelete && (
           <TouchableOpacity onPress={onDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="close" size={14} color="#55556A" />

@@ -2,6 +2,11 @@ import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/auth';
 import { View, ActivityIndicator } from 'react-native';
+import { XPToast } from '@/components/ui/XPToast';
+import { RankUpModal } from '@/components/ui/RankUpModal';
+import { TaskCompleteToast } from '@/components/ui/TaskCompleteToast';
+import { GoalCompleteOverlay } from '@/components/ui/GoalCompleteOverlay';
+import { MilestoneCompleteOverlay } from '@/components/ui/MilestoneCompleteOverlay';
 
 export default function TabsLayout() {
   const session = useAuthStore((s) => s.session);
@@ -18,19 +23,20 @@ export default function TabsLayout() {
   if (!session) return <Redirect href="/(auth)/sign-in" />;
 
   return (
+    <View style={{ flex: 1 }}>
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0F0F11',
-          borderTopColor: '#2A2A32',
+          backgroundColor: '#13131eF8',
+          borderTopColor: '#252535',
           borderTopWidth: 1,
           paddingBottom: 4,
           height: 60,
         },
         tabBarActiveTintColor: '#5B5EF4',
-        tabBarInactiveTintColor: '#55556A',
-        tabBarLabelStyle: { fontSize: 11, marginTop: -2 },
+        tabBarInactiveTintColor: '#44445A',
+        tabBarLabelStyle: { fontSize: 9, fontWeight: '700', marginTop: -2 },
       }}
     >
       <Tabs.Screen
@@ -61,15 +67,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="performance"
-        options={{
-          title: 'Stats',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="habits"
         options={{
           title: 'Habits',
@@ -78,7 +75,22 @@ export default function TabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="performance"
+        options={{
+          title: 'Stats',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
+          ),
+        }}
+      />
       <Tabs.Screen name="rank" options={{ href: null }} />
     </Tabs>
+    <XPToast />
+    <RankUpModal />
+    <TaskCompleteToast />
+    <GoalCompleteOverlay />
+    <MilestoneCompleteOverlay />
+    </View>
   );
 }

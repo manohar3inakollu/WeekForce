@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Stride Icon Generator</title>
+  <style>
+    body { font-family: sans-serif; padding: 40px; background: #111; color: #eee; }
+    h2 { color: #A8C4F8; margin-bottom: 8px; }
+    p { color: #888; margin-bottom: 24px; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 32px; }
+    button {
+      padding: 12px 20px; background: #1A3FC4; color: white;
+      border: none; border-radius: 8px; cursor: pointer; font-size: 14px;
+    }
+    button:hover { background: #0D2A8A; }
+    canvas { border-radius: 18px; display: block; }
+    label { color: #555; font-size: 12px; margin-top: 6px; display: block; }
+  </style>
+</head>
+<body>
+  <h2>Stride Icon Generator</h2>
+  <p>Click each button to download the PNG, then replace the matching file in your <code>assets/</code> folder.</p>
+
+  <div class="buttons">
+    <button onclick="dl(1024, 'icon.png')">icon.png &nbsp;1024×1024</button>
+    <button onclick="dl(1024, 'adaptive-icon.png')">adaptive-icon.png &nbsp;1024×1024</button>
+    <button onclick="dl(1024, 'splash-icon.png')">splash-icon.png &nbsp;1024×1024</button>
+    <button onclick="dl(32, 'favicon.png')">favicon.png &nbsp;32×32</button>
+  </div>
+
+  <canvas id="preview" width="160" height="160"></canvas>
+  <label>Preview (160×160)</label>
+
+  <script>
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" width="160" height="160">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1A3FC4"/>
+      <stop offset="100%" style="stop-color:#0D2A8A"/>
+    </linearGradient>
+    <linearGradient id="bar1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#A8C4F8"/>
+      <stop offset="100%" style="stop-color:#5B8FF0"/>
+    </linearGradient>
+    <linearGradient id="bar2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#7AABFF"/>
+      <stop offset="100%" style="stop-color:#2D6BE4"/>
+    </linearGradient>
+    <linearGradient id="bar3" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFFFFF"/>
+      <stop offset="100%" style="stop-color:#C0D8FF"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="160" height="160" rx="36" fill="url(#bgGrad)"/>
+  <rect x="28" y="92" width="28" height="42" rx="7" fill="url(#bar1)" opacity="0.6"/>
+  <rect x="66" y="66" width="28" height="68" rx="7" fill="url(#bar2)" opacity="0.85"/>
+  <rect x="104" y="34" width="28" height="100" rx="7" fill="url(#bar3)" filter="url(#glow)"/>
+</svg>`;
+
+    function render(size) {
+      return new Promise(resolve => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, size, size);
+          URL.revokeObjectURL(url);
+          resolve(canvas);
+        };
+        img.src = url;
+      });
+    }
+
+    async function dl(size, name) {
+      const canvas = await render(size);
+      const a = document.createElement('a');
+      a.download = name;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    }
+
+    render(160).then(c => {
+      document.getElementById('preview').getContext('2d').drawImage(c, 0, 0);
+    });
+  </script>
+</body>
+</html>

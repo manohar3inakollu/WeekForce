@@ -85,8 +85,8 @@ export function TimePicker({ label, value, onChange }: TimePickerProps) {
                 mode="time"
                 display="spinner"
                 is24Hour={false}
-                onChange={(_: any, selected?: Date) => {
-                  if (selected) onChange(dateToHhmm(selected));
+                onValueChange={(_: any, selected: Date) => {
+                  onChange(dateToHhmm(selected));
                 }}
                 style={{ height: 200 }}
               />

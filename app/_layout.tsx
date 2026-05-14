@@ -2,7 +2,8 @@ import '../global.css';
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { Stack, useSegments, useRootNavigationState, router } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
 import * as Linking from 'expo-linking';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '@/lib/supabase';
@@ -22,11 +23,6 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   document.documentElement.classList.add('dark');
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
-  },
-});
 
 function NavigationGuard() {
   const session = useAuthStore((s) => s.session);
@@ -66,7 +62,22 @@ async function handleOAuthUrl(url: string) {
 
 async function loadOnboarded(userId: string, setOnboarded: (v: boolean) => void) {
   const val = await AsyncStorage.getItem(`onboarded_${userId}`);
-  setOnboarded(val === 'true');
+  if (val === 'true') {
+    setOnboarded(true);
+    return;
+  }
+  // AsyncStorage may be empty on a fresh install or new build variant — check DB
+  const { data } = await supabase
+    .from('users')
+    .select('onboarded')
+    .eq('id', userId)
+    .single();
+  const dbOnboarded = data?.onboarded === true;
+  if (dbOnboarded) {
+    // Backfill local cache so subsequent launches are instant
+    await AsyncStorage.setItem(`onboarded_${userId}`, 'true');
+  }
+  setOnboarded(dbOnboarded);
 }
 
 export default function RootLayout() {
@@ -84,6 +95,9 @@ export default function RootLayout() {
         setOnboarded(false);
       }
       setInitialized(true);
+    }).catch(() => {
+      setOnboarded(false);
+      setInitialized(true);
     });
 
     // Keep Zustand in sync; load onboarded flag on new sign-in
@@ -91,6 +105,8 @@ export default function RootLayout() {
       setSession(session);
       if (session) {
         await loadOnboarded(session.user.id, setOnboarded);
+      } else {
+        setOnboarded(false);
       }
     });
 
@@ -117,6 +133,7 @@ export default function RootLayout() {
           <Stack.Screen name="profile" />
           <Stack.Screen name="task/[id]" options={{ presentation: 'modal' }} />
           <Stack.Screen name="goal/[id]" />
+          <Stack.Screen name="milestone/[id]" />
         </Stack>
       </QueryClientProvider>
     </View>

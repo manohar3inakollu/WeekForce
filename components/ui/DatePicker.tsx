@@ -6,12 +6,13 @@ import { format, parseISO, isValid } from 'date-fns';
 
 interface DatePickerProps {
   label?: string;
+  required?: boolean;
   value: string | null;
   onChange: (date: string | null) => void;
   placeholder?: string;
 }
 
-export function DatePicker({ label, value, onChange }: DatePickerProps) {
+export function DatePicker({ label, required, value, onChange }: DatePickerProps) {
   const [show, setShow] = useState(false);
   const date = value && isValid(parseISO(value)) ? parseISO(value) : new Date();
   const displayText = value && isValid(parseISO(value))
@@ -31,7 +32,10 @@ export function DatePicker({ label, value, onChange }: DatePickerProps) {
   return (
     <View style={{ gap: 6 }}>
       {label && (
-        <Text style={{ color: '#8888A0', fontSize: 14, fontWeight: '500' }}>{label}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+          <Text style={{ color: '#8888A0', fontSize: 14, fontWeight: '500' }}>{label}</Text>
+          {required && <Text style={{ color: '#EF4444', fontSize: 11, fontWeight: '700', lineHeight: 18 }}>*</Text>}
+        </View>
       )}
       <TouchableOpacity
         onPress={Platform.OS === 'android' ? openAndroid : () => setShow(true)}
@@ -60,7 +64,12 @@ export function DatePicker({ label, value, onChange }: DatePickerProps) {
                 <TouchableOpacity onPress={() => { onChange(null); setShow(false); }}>
                   <Text style={{ color: '#EF4444', fontWeight: '600' }}>Clear</Text>
                 </TouchableOpacity>
-                <Text style={{ color: '#F0F0F5', fontWeight: '700', fontSize: 16 }}>Select Date</Text>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ color: '#F0F0F5', fontWeight: '700', fontSize: 16 }}>Select Date</Text>
+                  {value && isValid(parseISO(value)) && (
+                    <Text style={{ color: '#8888AA', fontSize: 12, marginTop: 2 }}>{format(parseISO(value), 'MMM d, yyyy')}</Text>
+                  )}
+                </View>
                 <TouchableOpacity onPress={() => setShow(false)}>
                   <Text style={{ color: '#5B5EF4', fontWeight: '600' }}>Done</Text>
                 </TouchableOpacity>
@@ -69,8 +78,8 @@ export function DatePicker({ label, value, onChange }: DatePickerProps) {
                 value={date}
                 mode="date"
                 display="spinner"
-                onChange={(_: any, selected?: Date) => {
-                  if (selected) onChange(format(selected, 'yyyy-MM-dd'));
+                onValueChange={(_: any, selected: Date) => {
+                  onChange(format(selected, 'yyyy-MM-dd'));
                 }}
                 style={{ height: 200 }}
               />

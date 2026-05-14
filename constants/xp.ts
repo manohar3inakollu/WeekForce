@@ -1,13 +1,3 @@
-export const XP_AWARDS = {
-  small_task: 10,
-  big_task: 25,
-  multi_day_task: 50,
-  major_goal: 100,
-  streak_7: 50,
-  streak_30: 200,
-  streak_365: 1000,
-} as const;
-
 export const TASK_XP_BY_DIFFICULTY = {
   easy: 5,
   medium: 10,
@@ -22,11 +12,18 @@ export const GOAL_XP_BY_DIFFICULTY = {
   epic: 400,
 } as const;
 
+export const MILESTONE_XP_BY_DIFFICULTY = {
+  easy: 500,
+  medium: 1000,
+  hard: 2000,
+  epic: 5000,
+} as const;
+
 export const DIFFICULTIES = [
-  { value: 'easy',   label: 'Easy',   color: '#22C55E', xp: 5,   goalXp: 50  },
-  { value: 'medium', label: 'Medium', color: '#F59E0B', xp: 10,  goalXp: 100 },
-  { value: 'hard',   label: 'Hard',   color: '#EF4444', xp: 25,  goalXp: 200 },
-  { value: 'epic',   label: 'Epic',   color: '#A855F7', xp: 50,  goalXp: 400 },
+  { value: 'easy',   label: 'Easy',   color: '#22C55E', xp: 5,   goalXp: 50,   milestoneXp: 500  },
+  { value: 'medium', label: 'Medium', color: '#F59E0B', xp: 10,  goalXp: 100,  milestoneXp: 1000 },
+  { value: 'hard',   label: 'Hard',   color: '#EF4444', xp: 25,  goalXp: 200,  milestoneXp: 2000 },
+  { value: 'epic',   label: 'Epic',   color: '#A855F7', xp: 50,  goalXp: 400,  milestoneXp: 5000 },
 ] as const;
 
 export const CATEGORIES = [
@@ -39,3 +36,12 @@ export const CATEGORIES = [
 ] as const;
 
 export const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+
+
+export const RANK_NAMES: Record<number, string> = {
+  1: 'Beginner', 2: 'Learner', 3: 'Doer', 4: 'Builder', 5: 'Achiever',
+  6: 'Momentum', 7: 'Focused', 8: 'Driven', 9: 'Committed', 10: 'Sharpener',
+  11: 'Tactician', 12: 'Strategist', 13: 'Expert', 14: 'Veteran', 15: 'Pioneer',
+  16: 'Trailblazer', 17: 'Pathfinder', 18: 'Commander', 19: 'Executor', 20: 'Visionary',
+  21: 'Luminary', 22: 'Titan', 23: 'Apex', 24: 'Legend', 25: 'Immortal',
+};

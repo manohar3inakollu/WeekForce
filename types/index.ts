@@ -30,11 +30,12 @@ export interface Goal {
   title: string;
   description: string | null;
   category: GoalCategory;
-  week_start: string;
+  start_date: string | null;
   due_date: string | null;
   status: GoalStatus;
   difficulty: Difficulty;
   xp_awarded: boolean;
+  milestone_id: string | null;
   created_at?: string;
 }
 
@@ -66,10 +67,24 @@ export interface Task {
   goal?: Goal;
 }
 
+export interface Milestone {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  category: GoalCategory;
+  start_date: string | null;
+  due_date: string | null;
+  status: 'active' | 'completed';
+  difficulty: Difficulty;
+  xp_awarded: boolean;
+  created_at?: string;
+}
+
 export interface XPEvent {
   id: string;
   user_id: string;
-  source_type: 'small_task' | 'big_task' | 'major_goal' | 'habit' | 'streak_bonus' | 'daily_clear';
+  source_type: 'small_task' | 'big_task' | 'major_goal' | 'milestone' | 'habit' | 'streak_bonus' | 'daily_clear';
   source_id: string;
   xp_amount: number;
   created_at: string;

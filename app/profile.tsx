@@ -35,12 +35,12 @@ export default function ProfileScreen() {
   const handleSave = async () => {
     await updateUser.mutateAsync({ full_name: name, daily_xp_target: target });
     setEditing(false);
+    Alert.alert('Saved', 'Your profile has been updated.');
   };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     clear();
-    router.replace('/');
   };
 
   const handleDeleteAccount = () => {
@@ -122,10 +122,17 @@ export default function ProfileScreen() {
               <Text className="text-text-muted text-xs uppercase tracking-widest">Total XP</Text>
             </View>
             <View style={{ width: 1 }} className="bg-border mx-2" />
-            <View className="flex-1 items-center gap-1">
+            <TouchableOpacity
+              className="flex-1 items-center gap-1"
+              onPress={() => Alert.alert('Qualifying Days', 'Days where you hit your Daily XP target. These count toward rank progression — each rank requires a minimum number of qualifying days in addition to total XP.')}
+              activeOpacity={0.7}
+            >
               <Text className="text-text-primary font-bold text-3xl">{user?.qualifying_days_total ?? 0}</Text>
-              <Text className="text-text-muted text-xs uppercase tracking-widest">Qual. Days</Text>
-            </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Text className="text-text-muted text-xs uppercase tracking-widest">Qual. Days</Text>
+                <Ionicons name="information-circle-outline" size={11} color="#44445A" />
+              </View>
+            </TouchableOpacity>
             <View style={{ width: 1 }} className="bg-border mx-2" />
             <View className="flex-1 items-center gap-1">
               <Text className="text-accent font-bold text-3xl">#{user?.rank_id ?? 1}</Text>
@@ -156,7 +163,7 @@ export default function ProfileScreen() {
                 </View>
                 <View>
                   <Text className="text-text-primary text-sm font-medium">App Walkthrough</Text>
-                  <Text className="text-text-muted text-xs">Revisit setup and XP target</Text>
+                  <Text className="text-text-muted text-xs">Redo full setup — goals, habits & XP target</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={16} color="#55556A" />
@@ -167,12 +174,21 @@ export default function ProfileScreen() {
             <View className="gap-4">
               <Input
                 label="Full name"
+                required
                 value={name}
                 onChangeText={setName}
                 autoFocus
               />
               <View className="gap-2">
-                <Text className="text-text-secondary text-sm font-medium">Daily XP target</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text className="text-text-secondary text-sm font-medium">Daily XP target</Text>
+                  <TouchableOpacity
+                    onPress={() => Alert.alert('Daily XP Target', 'Your goal for XP earned per day. Reach it to count the day as a "qualifying day", which contributes toward rank progression.\n\nCasual: 20 XP / day\nRegular: 50 XP / day\nActive: 100 XP / day\nHardcore: 200 XP / day')}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="information-circle-outline" size={15} color="#55556A" />
+                  </TouchableOpacity>
+                </View>
                 {TARGET_OPTIONS.map((opt) => (
                   <TouchableOpacity
                     key={opt.value}

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTasksForWeek, useUpdateTaskStatus, useUncompleteTask, useDeleteTask, useCreateTask, useReorderTasks, useToggleRecurringTask } from '@/hooks/useTasks';
@@ -7,13 +7,15 @@ import { useGoals } from '@/hooks/useGoals';
 import { useUIStore } from '@/store/ui';
 import { TaskCard } from '@/components/tasks/TaskCard';
 import { TaskForm, TaskFormData } from '@/components/tasks/TaskForm';
-import { XPToast } from '@/components/ui/XPToast';
 import { WeekNav } from '@/components/ui/WeekNav';
 import { DayOfWeek, Task } from '@/types';
 import { DAYS_OF_WEEK } from '@/constants/xp';
-import { todayDayLabel } from '@/lib/utils';
+import { todayDayLabel, CAT_COLORS, isTaskOverdue } from '@/lib/utils';
 import { format, parseISO, addDays, subDays } from 'date-fns';
 import { router } from 'expo-router';
+
+const PLANNER_CATS = ['All', 'health', 'work', 'personal', 'learning', 'finance', 'other'] as const;
+type PlannerCat = typeof PLANNER_CATS[number];
 
 function getDayLoad(tasks: Task[]) {
   const mins = tasks.reduce((s, t) => s + (t.estimated_minutes ?? 30), 0);
@@ -33,7 +35,9 @@ function moveItem<T>(arr: T[], from: number, to: number): T[] {
 export default function PlannerScreen() {
   const weekStart = useUIStore((s) => s.selectedWeekStart);
   const setSelectedWeekStart = useUIStore((s) => s.setSelectedWeekStart);
-  const { data: tasks = [], isLoading, refetch } = useTasksForWeek(weekStart);
+  const plannerView = useUIStore((s) => s.plannerView);
+  const setPlannerView = useUIStore((s) => s.setPlannerView);
+  const { data: tasks = [], isLoading, isRefetching, refetch } = useTasksForWeek(weekStart);
   const { data: goals = [] } = useGoals(weekStart);
 
   const updateStatus = useUpdateTaskStatus();
@@ -45,8 +49,9 @@ export default function PlannerScreen() {
 
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [defaultDay, setDefaultDay] = useState<DayOfWeek>(todayDayLabel());
+  const [defaultDate, setDefaultDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [localOrder, setLocalOrder] = useState<Record<string, string[]>>({});
-  const [plannerView, setPlannerView] = useState<'week' | 'day'>('day');
+  const [catFilter, setCatFilter] = useState<PlannerCat>('All');
   const todayIdx = DAYS_OF_WEEK.indexOf(todayDayLabel());
   const [selectedDayIdx, setSelectedDayIdx] = useState(todayIdx >= 0 ? todayIdx : 0);
 
@@ -60,39 +65,63 @@ export default function PlannerScreen() {
     }
     if (task.status === 'done' || task.is_completed) {
       uncompleteTask.mutate(task.id);
-    } else if (task.status === 'in_progress') {
-      updateStatus.mutate({ task, status: 'done' });
     } else {
-      updateStatus.mutate({ task, status: 'in_progress' });
+      updateStatus.mutate({ task, status: 'done' });
     }
   };
 
   const handleAddForDay = (day: DayOfWeek) => {
+    const dayIdx = DAYS_OF_WEEK.indexOf(day);
     setDefaultDay(day);
+    setDefaultDate(format(addDays(weekStart_date, dayIdx), 'yyyy-MM-dd'));
     setShowTaskForm(true);
   };
 
   const handleCreateTask = async (data: TaskFormData) => {
-    await createTask.mutateAsync({ ...data, due_date: weekStart });
-    setShowTaskForm(false);
+    try {
+      await createTask.mutateAsync(data);
+      setShowTaskForm(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Something went wrong. Please try again.');
+    }
   };
 
-  const getOrderedTasks = (day: DayOfWeek) => {
-    const dayTasks = tasks.filter((t) => {
-      const rt = t.recurrence_type ?? 'none';
-      if (rt === 'daily') return true;
-      if (rt === 'weekly') return t.scheduled_day === day;
-      if (rt === 'custom') return t.recurrence_days?.includes(day) ?? false;
-      return t.scheduled_day === day; // 'none'
-    });
-    const order = localOrder[day];
-    if (!order) return dayTasks;
-    return [...dayTasks].sort((a, b) => {
-      const ai = order.indexOf(a.id);
-      const bi = order.indexOf(b.id);
-      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-    });
-  };
+  const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+  const orderedTasksByDay = useMemo(() => {
+    const map: Record<string, Task[]> = {};
+    for (const day of DAYS_OF_WEEK) {
+      let dayTasks = tasks.filter((t) => {
+        const rt = t.recurrence_type ?? 'none';
+        if (rt === 'daily') return true;
+        if (rt === 'weekly') return t.scheduled_day === day;
+        if (rt === 'custom') return t.recurrence_days?.includes(day) ?? false;
+        return t.scheduled_day === day;
+      });
+      if (catFilter !== 'All') {
+        dayTasks = dayTasks.filter((t) => (t.goal?.category ?? 'other') === catFilter);
+      }
+      const order = localOrder[day];
+      if (order) {
+        dayTasks = [...dayTasks].sort((a, b) => {
+          const ai = order.indexOf(a.id);
+          const bi = order.indexOf(b.id);
+          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+        });
+      } else {
+        dayTasks = [...dayTasks].sort((a, b) => {
+          const aOver = isTaskOverdue(a) ? 0 : 1;
+          const bOver = isTaskOverdue(b) ? 0 : 1;
+          if (aOver !== bOver) return aOver - bOver;
+          return (PRIORITY_RANK[a.priority ?? 'medium'] ?? 1) - (PRIORITY_RANK[b.priority ?? 'medium'] ?? 1);
+        });
+      }
+      map[day] = dayTasks;
+    }
+    return map;
+  }, [tasks, catFilter, localOrder]);
+
+  const getOrderedTasks = (day: DayOfWeek) => orderedTasksByDay[day] ?? [];
 
   const handleMove = (day: DayOfWeek, dayTasks: Task[], from: number, dir: -1 | 1) => {
     const to = from + dir;
@@ -122,10 +151,9 @@ export default function PlannerScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <XPToast />
       <View className="px-5 pt-14 pb-4 border-b border-border">
         <View className="flex-row items-center justify-between">
-          <Text className="text-text-primary text-2xl font-bold">Planner</Text>
+          <Text style={{ color: '#E8E8F2', fontSize: 24, fontWeight: '800' }}>Planner</Text>
           <View className="flex-row items-center gap-2">
             <View style={{ flexDirection: 'row', backgroundColor: '#1E1E24', borderRadius: 8, padding: 2 }}>
               {(['week', 'day'] as const).map((v) => (
@@ -144,11 +172,21 @@ export default function PlannerScreen() {
               ))}
             </View>
             <TouchableOpacity
-              onPress={() => setShowTaskForm(true)}
-              className="bg-accent px-3 py-2 rounded-xl flex-row items-center gap-1"
+              onPress={() => {
+                const day = plannerView === 'day' ? DAYS_OF_WEEK[selectedDayIdx] : todayLabel;
+                handleAddForDay(day);
+              }}
+              style={{ borderRadius: 12, overflow: 'hidden' }}
             >
-              <Ionicons name="add" size={18} color="#fff" />
-              <Text className="text-white font-medium text-sm">Task</Text>
+              <LinearGradient
+                colors={['#6B6EFF', '#5B5EF4']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              >
+                <Ionicons name="add" size={18} color="#fff" />
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Task</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
@@ -171,11 +209,67 @@ export default function PlannerScreen() {
         )}
       </View>
 
+      {/* Category filter chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 6, flexDirection: 'row', alignItems: 'center' }}
+        style={{ flexShrink: 0, maxHeight: 48, borderBottomWidth: 1, borderBottomColor: '#252535' }}
+      >
+        {PLANNER_CATS.map((cat) => {
+          const on = catFilter === cat;
+          const col = cat === 'All' ? '#5B5EF4' : CAT_COLORS[cat];
+          const selectedDayName = DAYS_OF_WEEK[selectedDayIdx];
+          const chipBaseTasks = plannerView === 'day'
+            ? tasks.filter((t) => {
+                const rt = t.recurrence_type ?? 'none';
+                if (rt === 'daily') return true;
+                if (rt === 'weekly') return t.scheduled_day === selectedDayName;
+                if (rt === 'custom') return t.recurrence_days?.includes(selectedDayName) ?? false;
+                return t.scheduled_day === selectedDayName;
+              })
+            : tasks;
+          const count = cat === 'All'
+            ? chipBaseTasks.length
+            : chipBaseTasks.filter((t) => (t.goal?.category ?? 'other') === cat).length;
+          return (
+            <TouchableOpacity
+              key={cat}
+              onPress={() => setCatFilter(cat)}
+              style={{
+                flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 5,
+                paddingVertical: 5, paddingHorizontal: 12, borderRadius: 20,
+                backgroundColor: on ? col : '#13131e',
+                borderWidth: 1, borderColor: on ? col : '#252535',
+              }}
+            >
+              {cat !== 'All' && (
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: on ? '#fff' : col }} />
+              )}
+              <Text style={{ fontSize: 11, fontWeight: '600', color: on ? '#fff' : '#55556A', textTransform: 'capitalize' }}>
+                {cat}
+              </Text>
+              {count > 0 && (
+                <View style={{ backgroundColor: on ? 'rgba(255,255,255,0.25)' : col + '30', borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1, minWidth: 16, alignItems: 'center' }}>
+                  <Text style={{ color: on ? '#fff' : col, fontSize: 9, fontWeight: '700' }}>{count}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {isLoading && !isRefetching && (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#5B5EF4" />
+        </View>
+      )}
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: 32 }}
+        style={{ display: isLoading && !isRefetching ? 'none' : 'flex' }}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refetch} tintColor="#5B5EF4" />
+          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor="#5B5EF4" />
         }
       >
         {(plannerView === 'week' ? DAYS_OF_WEEK : [DAYS_OF_WEEK[selectedDayIdx]]).map((day) => {
@@ -208,11 +302,13 @@ export default function PlannerScreen() {
                   </View>
                   <View className="flex-row items-center gap-3">
                     {load && (
-                      <View
+                      <TouchableOpacity
+                        onPress={() => Alert.alert('Day Load', 'Total estimated task time for this day.\n\nLight: ≤ 2 hours\nModerate: 2 – 5 hours\nHeavy: > 5 hours\n\nAdjust task durations in each task to control this.')}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                         style={{ backgroundColor: load.color + '22', borderColor: load.color + '55', borderRadius: 20, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 }}
                       >
                         <Text style={{ color: load.color, fontSize: 12, fontWeight: '500' }}>{load.label}</Text>
-                      </View>
+                      </TouchableOpacity>
                     )}
                     <Text className="text-text-muted text-xs">
                       {completedCount}/{dayTasks.length}
@@ -230,11 +326,13 @@ export default function PlannerScreen() {
                 </View>
                 <View className="flex-row items-center gap-3">
                   {load && (
-                    <View
+                    <TouchableOpacity
+                      onPress={() => Alert.alert('Day Load', 'Total estimated task time for this day.\n\nLight: ≤ 2 hours\nModerate: 2 – 5 hours\nHeavy: > 5 hours\n\nAdjust task durations in each task to control this.')}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                       style={{ backgroundColor: load.color + '22', borderColor: load.color + '55', borderRadius: 20, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 }}
                     >
                       <Text style={{ color: load.color, fontSize: 12, fontWeight: '500' }}>{load.label}</Text>
-                    </View>
+                    </TouchableOpacity>
                   )}
                   <Text className="text-text-muted text-xs">
                     {completedCount}/{dayTasks.length}
@@ -246,7 +344,7 @@ export default function PlannerScreen() {
               </View>
               )}
 
-              <View className="px-5 pb-3 gap-2">
+              <View className="px-5 pt-2 pb-3 gap-2">
                 {dayTasks.length === 0 ? (
                   <TouchableOpacity
                     onPress={() => handleAddForDay(day)}
@@ -263,7 +361,16 @@ export default function PlannerScreen() {
                           task={task}
                           onToggle={() => handleToggle(task, dateStr)}
                           onPress={() => router.push(`/task/${task.id}`)}
-                          onDelete={() => deleteTask.mutate(task.id)}
+                          onDelete={() =>
+                            Alert.alert(
+                              'Delete task?',
+                              `"${task.title}" will be permanently removed.`,
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                { text: 'Delete', style: 'destructive', onPress: () => deleteTask.mutate(task.id) },
+                              ],
+                            )
+                          }
                           showGoal
                           isCompletedOverride={
                             task.recurrence_type !== 'none'
@@ -312,6 +419,7 @@ export default function PlannerScreen() {
         loading={createTask.isPending}
         goals={goals}
         defaultDay={defaultDay}
+        defaultDate={defaultDate}
       />
     </View>
   );

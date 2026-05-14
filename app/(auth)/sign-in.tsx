@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Platform, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Platform, Alert, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
@@ -62,7 +62,7 @@ export default function SignIn() {
         }
       }
     } catch (e: any) {
-      Alert.alert('Sign in failed', e.message);
+      Alert.alert('Sign in failed', 'Something went wrong. Please try again.');
     } finally {
       setOauthLoading(null);
     }
@@ -79,22 +79,32 @@ export default function SignIn() {
       >
         {/* Logo / branding */}
         <View style={{ alignItems: 'center', marginBottom: 56, gap: 12 }}>
-          <View style={{ width: 72, height: 72, borderRadius: 20, overflow: 'hidden', marginBottom: 4 }}>
-            <LinearGradient
-              colors={['#6B6EFF', '#5B5EF4']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
-            >
-              <Text style={{ color: '#fff', fontSize: 32, fontWeight: '800' }}>W</Text>
-            </LinearGradient>
-          </View>
+          <Image
+            source={require('@/assets/splash-icon.png')}
+            style={{ width: 80, height: 80, borderRadius: 20, marginBottom: 4 }}
+            resizeMode="cover"
+          />
           <Text style={{ color: '#F0F0F5', fontSize: 36, fontWeight: '800', letterSpacing: -0.5 }}>
-            WeekForce
+            Stride
           </Text>
           <Text style={{ color: '#8888A0', fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
             Build habits. Earn XP. Climb ranks.{'\n'}Sign in to continue.
           </Text>
+        </View>
+
+        {/* Rank preview pills */}
+        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 36, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {([['Beginner', '#6B7280'], ['Expert', '#3B82F6'], ['Legend', '#F59E0B'], ['Immortal', '#8B5CF6']] as const).map(([rank, color]) => (
+            <View
+              key={rank}
+              style={{
+                paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+                backgroundColor: color + '18', borderWidth: 1, borderColor: color + '44',
+              }}
+            >
+              <Text style={{ color, fontSize: 9, fontWeight: '700' }}>{rank}</Text>
+            </View>
+          ))}
         </View>
 
         {/* OAuth buttons */}

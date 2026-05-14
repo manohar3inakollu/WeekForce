@@ -1,7 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/auth';
 import { User } from '@/types';
+
+function sessionFallbackUser(session: Session): User {
+  const meta = session.user.user_metadata ?? {};
+  return {
+    id: session.user.id,
+    email: session.user.email ?? '',
+    full_name: meta.full_name ?? meta.name ?? '',
+    xp_total: 0,
+    qualifying_days_total: 0,
+    rank_id: 1,
+    daily_xp_target: 'regular',
+    created_at: new Date().toISOString(),
+  };
+}
 
 export function useUser() {
   const session = useAuthStore((s) => s.session);
@@ -11,6 +26,7 @@ export function useUser() {
     queryKey: ['user', session?.user.id],
     queryFn: async () => {
       if (!session) return null;
+      const meta = session.user.user_metadata ?? {};
       let { data, error } = await supabase
         .from('users')
         .select('*')
@@ -19,22 +35,47 @@ export function useUser() {
 
       if (error?.code === 'PGRST116') {
         // User row missing — DB trigger didn't fire (common with OAuth). Create it.
-        const meta = session.user.user_metadata ?? {};
         const full_name = meta.full_name ?? meta.name ?? '';
         const { data: newUser, error: insertError } = await supabase
           .from('users')
-          .insert({
+          .upsert({
             id: session.user.id,
             email: session.user.email ?? '',
             full_name,
-          })
+          }, { onConflict: 'id' })
           .select()
           .single();
-        if (insertError) throw insertError;
+        if (insertError) {
+          // Upsert failed (e.g. email uniqueness conflict from a deleted+recreated account).
+          // Fall back to a minimal user object built from the session so the UI is usable.
+          console.error('[useUser] upsert failed:', insertError.message, insertError.code);
+          const fallback = sessionFallbackUser(session);
+          setUser(fallback);
+          return fallback;
+        }
         data = newUser;
         error = null;
       } else if (error) {
-        throw error;
+        // Any other DB error — use session metadata as fallback so the UI stays functional.
+        console.error('[useUser] fetch failed:', error.message, error.code);
+        const fallback = sessionFallbackUser(session);
+        setUser(fallback);
+        return fallback;
+      }
+
+      // Backfill full_name when the DB trigger created the row with an empty name.
+      // Happens with Google OAuth: trigger reads 'full_name' but Google sends 'name'.
+      if (data && !data.full_name) {
+        const full_name = meta.full_name ?? meta.name ?? '';
+        if (full_name) {
+          const { data: updated } = await supabase
+            .from('users')
+            .update({ full_name })
+            .eq('id', session.user.id)
+            .select()
+            .single();
+          if (updated) data = updated;
+        }
       }
 
       setUser(data as User);
@@ -72,12 +113,13 @@ export function useDailyXPEvents(dateStr: string) {
     queryKey: ['xp_events', session?.user.id, dateStr],
     queryFn: async () => {
       if (!session) return [];
-      // Fetch a ±24 h window around the local day, then filter client-side by
-      // local date so the result is correct regardless of the Supabase server
-      // timezone or the device timezone (e.g. IST = UTC+5:30).
-      const localMidnight = new Date(`${dateStr}T00:00:00`); // local midnight
+      // Use a ±24 h window to account for timezone differences between the
+      // device and the Supabase server, then filter client-side to the exact
+      // local date. For non-today dates the window is the same size — no need
+      // to fetch 3 days of events as the old ±48 h end did.
+      const localMidnight = new Date(`${dateStr}T00:00:00`);
       const windowStart = new Date(localMidnight.getTime() - 24 * 60 * 60 * 1000).toISOString();
-      const windowEnd   = new Date(localMidnight.getTime() + 48 * 60 * 60 * 1000).toISOString();
+      const windowEnd   = new Date(localMidnight.getTime() + 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await supabase
         .from('xp_events')
         .select('*')
@@ -87,7 +129,6 @@ export function useDailyXPEvents(dateStr: string) {
         .order('created_at', { ascending: false });
       if (error) throw error;
       const all = (data ?? []) as { id: string; source_type: string; source_id: string; xp_amount: number; created_at: string }[];
-      // Filter to events whose local date matches dateStr
       return all.filter((e) => {
         const d = new Date(e.created_at);
         const local = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -95,6 +136,7 @@ export function useDailyXPEvents(dateStr: string) {
       });
     },
     enabled: !!session,
+    staleTime: 30_000,
   });
 }
 
@@ -109,6 +151,7 @@ export function useDeleteAccount() {
       await supabase.from('xp_events').delete().eq('user_id', uid);
       await supabase.from('tasks').delete().eq('user_id', uid);
       await supabase.from('goals').delete().eq('user_id', uid);
+      await supabase.from('milestones').delete().eq('user_id', uid);
       await supabase.from('weekly_summaries').delete().eq('user_id', uid);
       await supabase.from('users').delete().eq('id', uid);
       await supabase.auth.signOut();
@@ -129,8 +172,9 @@ export function useResetProgress() {
       const uid = session.user.id;
       await supabase.from('users').update({ xp_total: 0, qualifying_days_total: 0, rank_id: 1 }).eq('id', uid);
       await supabase.from('xp_events').delete().eq('user_id', uid);
-      await supabase.from('tasks').update({ is_completed: false, xp_awarded: false, status: null }).eq('user_id', uid);
+      await supabase.from('tasks').update({ is_completed: false, xp_awarded: false, status: 'pending', completed_dates: [] }).eq('user_id', uid);
       await supabase.from('goals').update({ status: 'active', xp_awarded: false }).eq('user_id', uid);
+      await supabase.from('milestones').update({ status: 'active', xp_awarded: false }).eq('user_id', uid);
       await supabase.from('weekly_summaries').delete().eq('user_id', uid);
     },
     onSuccess: () => {
